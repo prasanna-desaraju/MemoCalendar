@@ -25,6 +25,56 @@ body {
   border-radius: 14px;
   box-shadow: 0 22px 50px rgba(0, 0, 0, 0.24);
   overflow: hidden;
+  perspective: 1400px;
+  transform-style: preserve-3d;
+  transform-origin: center;
+  will-change: transform;
+}
+
+.calendar-card.flip-page-next {
+  animation: month-page-turn-next 620ms cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.calendar-card.flip-page-prev {
+  animation: month-page-turn-prev 620ms cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+@keyframes month-page-turn-next {
+  0% {
+    transform: perspective(1200px) rotateY(0deg);
+    filter: brightness(1);
+  }
+  49% {
+    transform: perspective(1200px) rotateY(-90deg);
+    filter: brightness(0.75);
+  }
+  50% {
+    transform: perspective(1200px) rotateY(90deg);
+    filter: brightness(0.75);
+  }
+  100% {
+    transform: perspective(1200px) rotateY(0deg);
+    filter: brightness(1);
+  }
+}
+
+@keyframes month-page-turn-prev {
+  0% {
+    transform: perspective(1200px) rotateY(0deg);
+    filter: brightness(1);
+  }
+  49% {
+    transform: perspective(1200px) rotateY(90deg);
+    filter: brightness(0.75);
+  }
+  50% {
+    transform: perspective(1200px) rotateY(-90deg);
+    filter: brightness(0.75);
+  }
+  100% {
+    transform: perspective(1200px) rotateY(0deg);
+    filter: brightness(1);
+  }
 }
 
 .hero-panel {
@@ -195,6 +245,26 @@ body {
   background: #0f6fa7;
 }
 
+.day-cell.holiday {
+  border-color: #f0b455;
+  background: #fff8e7;
+}
+
+.holiday-dot {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f39c12;
+}
+
+.day-cell.holiday:hover {
+  border-color: #e39b31;
+  background: #fff2d5;
+}
+
 .notes-panel {
   border: 1px solid #dbe2e8;
   border-radius: 10px;
@@ -213,6 +283,13 @@ body {
   margin: 0.5rem 0 0.65rem;
   color: #60717d;
   font-size: 0.85rem;
+}
+
+.holiday-occasion {
+  margin: -0.2rem 0 0.55rem;
+  color: #8a5c0d;
+  font-size: 0.82rem;
+  font-weight: 600;
 }
 
 .notes-scopes {
@@ -330,5 +407,12 @@ body {
 
   .notes-panel textarea {
     min-height: 160px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calendar-card.flip-page-next,
+  .calendar-card.flip-page-prev {
+    animation: none;
   }
 }

@@ -1,7 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
 
+function parseKeyToDate(dateKey) {
+  if (!dateKey) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+    const [year, month, day] = dateKey.split("-").map(Number);
+    return new Date(year, month - 1, day);
+  }
+  const parsed = new Date(dateKey);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function normalizeDateKey(dateKey) {
+  const parsed = parseKeyToDate(dateKey);
+  if (!parsed) return dateKey;
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function formatKeyDate(dateKey) {
-  const [year, month, day] = dateKey.split("-").map(Number);
+  const normalizedKey = normalizeDateKey(dateKey);
+  const [year, month, day] = normalizedKey.split("-").map(Number);
   return new Date(year, month - 1, day).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric"
@@ -22,7 +42,8 @@ function NotesPanel({
   onChange,
   onDeleteSavedNote,
   rangeStart,
-  rangeEnd
+  rangeEnd,
+  selectedHolidayName
 }) {
   const [scope, setScope] = useState("month");
 
@@ -74,7 +95,7 @@ function NotesPanel({
         type: "Date",
         typeKey: "date",
         label: formatKeyDate(key),
-        sortKey: key,
+        sortKey: normalizeDateKey(key),
         text: text.trim()
       }));
 
@@ -88,18 +109,25 @@ function NotesPanel({
           type: "Range",
           typeKey: "range",
           label: formatRangeKey(key),
-          sortKey: start,
+          sortKey: normalizeDateKey(start),
           text: text.trim()
         };
       });
 
-    return [...dateItems, ...rangeItems].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+    return [...dateItems, ...rangeItems].sort((a, b) => {
+      const compare = a.sortKey.localeCompare(b.sortKey);
+      if (compare !== 0) return compare;
+      return a.type.localeCompare(b.type);
+    });
   }, [allDateNotes, allRangeNotes]);
 
   return (
     <aside className="notes-panel">
       <h2>Notes</h2>
       <p className="notes-subtitle">{rangeText}</p>
+      {selectedHolidayName ? (
+        <p className="holiday-occasion">Occasion: {selectedHolidayName}</p>
+      ) : null}
       <div className="notes-scopes">
         <button
           type="button"

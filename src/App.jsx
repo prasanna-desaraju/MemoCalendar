@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import CalendarGrid from "./components/CalendarGrid";
 import HeroPanel from "./components/HeroPanel";
 import MonthNav from "./components/MonthNav";
 import NotesPanel from "./components/NotesPanel";
-import { buildCalendarDays, getMonthLabel, isSameDay, normalizeRange } from "./utils/calendar";
+import { buildCalendarDays, getMonthLabel, getPublicHolidaysForMonth, isSameDay, normalizeRange } from "./utils/calendar";
 
 function getDayKey(date) {
   const year = date.getFullYear();
@@ -35,10 +35,20 @@ function App() {
     const raw = window.localStorage.getItem("tuftask-month-state");
     return raw ? JSON.parse(raw) : {};
   });
+  const [dragPreview, setDragPreview] = useState(null);
+  const [isMonthFlipping, setIsMonthFlipping] = useState(false);
+  const [flipDirection, setFlipDirection] = useState("next");
+  const flipSwapTimeoutRef = useRef(null);
+  const flipEndTimeoutRef = useRef(null);
 
   const monthKey = `${monthDate.getFullYear()}-${monthDate.getMonth() + 1}`;
   const monthLabel = getMonthLabel(monthDate);
   const days = useMemo(() => buildCalendarDays(monthDate), [monthDate]);
+  const publicHolidays = useMemo(() => getPublicHolidaysForMonth(monthDate), [monthDate]);
+  const publicHolidaysByDate = useMemo(
+    () => Object.fromEntries(publicHolidays.map((item) => [item.dateKey, item.name])),
+    [publicHolidays]
+  );
   const currentMonthState = monthState[monthKey] ?? {};
   const rangeStart = parseStoredDate(currentMonthState.start);
   const rangeEnd = parseStoredDate(currentMonthState.end);
@@ -49,13 +59,40 @@ function App() {
   const selectedRangeKey = rangeStart && rangeEnd ? getRangeKey(rangeStart, rangeEnd) : null;
   const selectedDateNotes = selectedDateKey ? dateNotes[selectedDateKey] ?? "" : "";
   const selectedRangeNotes = selectedRangeKey ? rangeNotes[selectedRangeKey] ?? "" : "";
+  const selectedHolidayName = selectedDateKey ? publicHolidaysByDate[selectedDateKey] ?? null : null;
+  const visibleRange = dragPreview ? normalizeRange(dragPreview.start, dragPreview.end) : null;
+
+  useEffect(() => {
+    setDragPreview(null);
+  }, [monthKey]);
+
+  useEffect(() => () => {
+    if (flipSwapTimeoutRef.current) window.clearTimeout(flipSwapTimeoutRef.current);
+    if (flipEndTimeoutRef.current) window.clearTimeout(flipEndTimeoutRef.current);
+  }, []);
+
+  function runMonthFlip(monthDelta, direction) {
+    if (isMonthFlipping) return;
+    setFlipDirection(direction);
+    setIsMonthFlipping(true);
+
+    flipSwapTimeoutRef.current = window.setTimeout(() => {
+      setMonthDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + monthDelta, 1));
+      flipSwapTimeoutRef.current = null;
+    }, 300);
+
+    flipEndTimeoutRef.current = window.setTimeout(() => {
+      setIsMonthFlipping(false);
+      flipEndTimeoutRef.current = null;
+    }, 620);
+  }
 
   function handlePrevMonth() {
-    setMonthDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+    runMonthFlip(-1, "prev");
   }
 
   function handleNextMonth() {
-    setMonthDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+    runMonthFlip(1, "next");
   }
 
   function saveMonthPatch(patch) {
@@ -73,6 +110,27 @@ function App() {
     });
   }
 
+  function handleRangeSelect(startDay, endDay) {
+    setDragPreview(null);
+    if (!startDay || !endDay) return;
+
+    const normalized = normalizeRange(startDay, endDay);
+    if (isSameDay(normalized.start, normalized.end) && rangeStart && !rangeEnd && isSameDay(rangeStart, normalized.start)) {
+      saveMonthPatch({ start: null, end: null });
+      return;
+    }
+
+    if (isSameDay(normalized.start, normalized.end)) {
+      saveMonthPatch({ start: getDayKey(normalized.start), end: null });
+      return;
+    }
+
+    saveMonthPatch({
+      start: getDayKey(normalized.start),
+      end: getDayKey(normalized.end)
+    });
+  }
+
   function handleDayClick(day, isCurrentMonth) {
     if (!isCurrentMonth) return;
 
@@ -85,11 +143,20 @@ function App() {
       saveMonthPatch({ start: getDayKey(day), end: null });
       return;
     }
+
     const normalized = normalizeRange(rangeStart, day);
     saveMonthPatch({
       start: getDayKey(normalized.start),
       end: getDayKey(normalized.end)
     });
+  }
+
+  function handleRangePreview(startDay, endDay) {
+    if (!startDay || !endDay) {
+      setDragPreview(null);
+      return;
+    }
+    setDragPreview({ start: startDay, end: endDay });
   }
 
   function handleNotesChange(scope, value) {
@@ -135,18 +202,26 @@ function App() {
 
   return (
     <main className="page">
-      <section className="calendar-card">
+      <section className={`calendar-card ${isMonthFlipping ? `flip-page-${flipDirection}` : ""}`}>
         <HeroPanel monthLabel={monthLabel.toUpperCase()} monthIndex={monthDate.getMonth()} />
 
         <section className="calendar-body">
           <div className="calendar-content">
-            <MonthNav label={monthLabel} onPrev={handlePrevMonth} onNext={handleNextMonth} />
+            <MonthNav
+              label={monthLabel}
+              onPrev={handlePrevMonth}
+              onNext={handleNextMonth}
+              disabled={isMonthFlipping}
+            />
             <CalendarGrid
               days={days}
-              rangeStart={rangeStart}
-              rangeEnd={rangeEnd}
+              rangeStart={visibleRange?.start ?? rangeStart}
+              rangeEnd={visibleRange?.end ?? rangeEnd}
               onDayClick={handleDayClick}
+              onRangeSelect={handleRangeSelect}
+              onRangePreview={handleRangePreview}
               hasDateNote={(date) => Boolean(dateNotes[getDayKey(date)])}
+              getHolidayName={(date) => publicHolidaysByDate[getDayKey(date)] ?? null}
             />
           </div>
           <NotesPanel
@@ -159,6 +234,7 @@ function App() {
             onDeleteSavedNote={handleDeleteSavedNote}
             rangeStart={rangeStart}
             rangeEnd={rangeEnd}
+            selectedHolidayName={selectedHolidayName}
           />
         </section>
       </section>
