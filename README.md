@@ -2,6 +2,10 @@
 
 A modern, interactive monthly planner built with **React + Vite**, designed to combine calendar planning, date-range workflows, and contextual note-taking in one clean experience.
 
+## Live Demo
+
+[View Live Demo](https://memo-calendar-one.vercel.app/)
+
 ---
 
 ## Highlights
